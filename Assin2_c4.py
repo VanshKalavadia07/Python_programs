@@ -1,255 +1,109 @@
-"""
-=====================================================================
- DYNAMIC REPORT GENERATOR
- Demonstrates: Decorators | classmethod | Magic (dunder) methods
-=====================================================================
-Author  : SY CSE 3 B BATCH
-Purpose : Allow a user to define report templates and apply
-          formatting options (bold, uppercase, bordered, logged)
-          dynamically using Python decorators, alternate
-          constructors (classmethod) and operator/behaviour
-          overloading (magic methods).
-=====================================================================
-"""
-
-import functools
-from datetime import datetime
-
-
-# =====================================================================
-# 1. FORMATTING DECORATORS
-#    Each decorator wraps a function that returns text and changes
-#    how that text looks, WITHOUT changing the function's own code.
-# =====================================================================
-
 def uppercase(func):
-    """Decorator: converts the wrapped function's returned text to UPPERCASE."""
-    @functools.wraps(func)
+    """Makes the text returned by func() become UPPERCASE."""
     def wrapper(*args, **kwargs):
-        return func(*args, **kwargs).upper()
+        result = func(*args, **kwargs)
+        return result.upper()
     return wrapper
-
 
 def bold(func):
-    """Decorator: wraps returned text with markdown-style bold markers."""
-    @functools.wraps(func)
+    """Adds ** before and after the text (like bold in markdown)."""
     def wrapper(*args, **kwargs):
-        return f"**{func(*args, **kwargs)}**"
-    return wrapper
-
-
-def add_border(char="-", length=50):
-    """Decorator FACTORY: adds a top/bottom border made of `char`.
-    Written as factory so the user can dynamically choose border style."""
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            content = func(*args, **kwargs)
-            border = char * length
-            return f"{border}\n{content}\n{border}"
-        return wrapper
-    return decorator
-
-
-def log_call(func):
-    """Decorator: logs when a report-generating method starts/ends
-    (useful for tracing report generation during a demo/viva)."""
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        print(f"[LOG] -> {func.__name__}() started")
         result = func(*args, **kwargs)
-        print(f"[LOG] <- {func.__name__}() finished")
-        return result
+        return "**" + result + "**"
     return wrapper
 
-
-# =====================================================================
-# 2. REPORT SECTION (a simple helper class)
-# =====================================================================
-
-class ReportSection:
-    """One section/heading of a report, e.g. 'Introduction', 'Results'."""
-
-    def __init__(self, title, content):
-        self.title = title
-        self.content = content
-
-    def __str__(self):                       # MAGIC METHOD - readable form
-        return f"{self.title}\n{self.content}"
-
-    def __repr__(self):                       # MAGIC METHOD - debug form
-        return f"ReportSection(title={self.title!r})"
-
-    def __eq__(self, other):                  # MAGIC METHOD - equality
-        return (isinstance(other, ReportSection)
-                and self.title == other.title
-                and self.content == other.content)
-
-
-# =====================================================================
-# 3. REPORT  (the core dynamic report generator class)
-# =====================================================================
+def add_border(func):
+    """Adds a line of dashes above and below the text."""
+    def wrapper(*args, **kwargs):
+        result = func(*args, **kwargs)
+        border = "-" * 40
+        return border + "\n" + result + "\n" + border
+    return wrapper
 
 class Report:
-    """Dynamic, template-driven report generator."""
-
-    # class-level registry shared by every Report -> supports classmethods
-    _templates = {}
+    """A simple report made up of a title and a list of sections."""
+    
+    templates = {}
 
     def __init__(self, title, author="Unknown"):
         self.title = title
         self.author = author
         self.sections = []
-        self.created_on = datetime.now()
-
-    # -----------------------------------------------------------------
-    # CLASS METHODS  -> alternate constructors / template management
-    # -----------------------------------------------------------------
-    @classmethod
-    def register_template(cls, name, section_titles):
-        """Register a reusable report template (list of section titles)."""
-        cls._templates[name] = section_titles
-        print(f"[TEMPLATE] '{name}' registered with sections: {section_titles}")
 
     @classmethod
-    def from_template(cls, name, title, author="Unknown"):
-        """Alternate constructor: build a Report directly from a
-        registered template name."""
-        if name not in cls._templates:
-            raise ValueError(f"Template '{name}' is not registered")
-        report = cls(title, author)
-        for sec_title in cls._templates[name]:
-            report.add_section(sec_title, "<content pending>")
-        return report
+    def add_template(cls, name, section_list):
+        cls.templates[name] = section_list
+        print(f"Template '{name}' saved with sections: {section_list}")
 
     @classmethod
-    def available_templates(cls):
-        return list(cls._templates.keys())
+    def create_from_template(cls, template_name, title, author="Unknown"):
+        new_report = cls(title, author)
+        for heading in cls.templates[template_name]:
+            new_report.add_section(heading, "content not filled yet")
+        return new_report
 
-    # -----------------------------------------------------------------
-    # INSTANCE METHODS
-    # -----------------------------------------------------------------
-    def add_section(self, title, content):
-        self.sections.append(ReportSection(title, content))
-        return self  # enables method chaining
+    def add_section(self, heading, content):
+        self.sections.append((heading, content))
 
-    def set_content(self, title, content):
-        """Fill in content for an existing (template-generated) section."""
-        for sec in self.sections:
-            if sec.title == title:
-                sec.content = content
+    def fill_section(self, heading, content):
+        """Update the content of a section that already exists."""
+        for i in range(len(self.sections)):
+            if self.sections[i][0] == heading:
+                self.sections[i] = (heading, content)
                 return True
         return False
 
-    @log_call
-    @add_border("=", 50)
-    def summary(self):
-        """A short, decorator-formatted summary of the report."""
-        return (f"Report: {self.title}\n"
-                f"Author: {self.author}\n"
-                f"Sections: {len(self.sections)}\n"
-                f"Generated: {self.created_on:%Y-%m-%d %H:%M}")
-
     @bold
-    def title_line(self):
-        return self.title
+    @add_border
+    def summary(self):
+        return f"Report: {self.title} | Author: {self.author} | Sections: {len(self.sections)}"
 
-    # -----------------------------------------------------------------
-    # MAGIC METHODS  -> make Report behave like a built-in container
-    # -----------------------------------------------------------------
-    def __str__(self):                                  # print(report)
-        lines = [f"REPORT: {self.title}", f"Author: {self.author}", "-" * 40]
-        for sec in self.sections:
-            lines.append(str(sec))
-            lines.append("")
-        return "\n".join(lines)
+    def __str__(self):
+        text = f"REPORT: {self.title} (by {self.author})\n"
+        for heading, content in self.sections:
+            text += f" - {heading}: {content}\n"
+        return text
 
-    def __repr__(self):
-        return f"Report(title={self.title!r}, author={self.author!r}, sections={len(self.sections)})"
-
-    def __len__(self):                                  # len(report)
+    def __len__(self):
         return len(self.sections)
 
-    def __getitem__(self, index):                       # report[0]
+    def __getitem__(self, index):
         return self.sections[index]
 
-    def __iter__(self):                                 # for section in report
-        return iter(self.sections)
+    def __add__(self, other):
+        combined = Report(self.title + " + " + other.title, self.author)
+        combined.sections = self.sections + other.sections
+        return combined
 
-    def __contains__(self, title):                      # "Intro" in report
-        return any(sec.title == title for sec in self.sections)
+    def __eq__(self, other):
+        return self.title == other.title and self.sections == other.sections
 
-    def __add__(self, other):                           # report1 + report2
-        if not isinstance(other, Report):
-            return NotImplemented
-        merged = Report(f"{self.title} & {other.title}", self.author)
-        merged.sections = self.sections + other.sections
-        return merged
-
-    def __eq__(self, other):                            # report1 == report2
-        return (isinstance(other, Report)
-                and self.title == other.title
-                and self.sections == other.sections)
-
-    def __call__(self, formatter=None):
-        """Makes a Report object CALLABLE: report() generates the final
-        text, optionally passed through a dynamically supplied formatter
-        (e.g. the `uppercase` decorator function itself, or any callable)."""
-        text = str(self)
-        return formatter(text) if formatter else text
-
-
-# =====================================================================
-# 4. DEMO / DRIVER CODE
-# =====================================================================
 if __name__ == "__main__":
+    Report.add_template("project_report", ["Introduction", "Result", "Conclusion"])
 
-    # ---- Step A: register templates dynamically (classmethod) --------
-    Report.register_template("project_report",
-                              ["Introduction", "Methodology", "Results", "Conclusion"])
-    Report.register_template("attendance_report",
-                              ["Summary", "Defaulter List"])
+    r1 = Report.create_from_template("project_report", "My Mini Project", "Rahul")
+    r1.fill_section("Introduction", "This project shows OOP concepts in Python.")
+    r1.fill_section("Result", "The program worked correctly.")
+    r1.fill_section("Conclusion", "Decorators and magic methods make code flexible.")
 
-    print("\nAvailable templates:", Report.available_templates())
+    r2 = Report("Attendance Report", "Rahul")
+    r2.add_section("Summary", "92% attendance this month.")
 
-    # ---- Step B: build a report FROM a template (classmethod ctor) ---
-    r1 = Report.from_template("project_report", "AI Lab Mini Project", author="DrVinodpuri")
-    r1.set_content("Introduction", "This project explores dynamic report generation.")
-    r1.set_content("Methodology", "Used decorators, classmethods and magic methods.")
-    r1.set_content("Results", "Report generated and formatted successfully.")
-    r1.set_content("Conclusion", "OOP features simplify dynamic formatting.")
+    print("---- print(r1) uses __str__ ----")
+    print(r1)
 
-    # ---- Step C: build a second, manually-created report -------------
-    r2 = Report("Attendance Snapshot", author="Rahul")
-    r2.add_section("Summary", "92% average attendance this month.")
+    print("---- len(r1) uses __len__ ----")
+    print(len(r1))
 
-    # ---- Step D: use magic methods ------------------------------------
-    print("\n--- len(r1) ---")
-    print(len(r1))                       # __len__
+    print("---- r1[0] uses __getitem__ ----")
+    print(r1[0])
 
-    print("\n--- r1[0] ---")
-    print(r1[0])                         # __getitem__
+    print("---- r1 + r2 uses __add__ ----")
+    combined = r1 + r2
+    print(combined)
 
-    print("\n--- iterate over r1 ---")
-    for section in r1:                   # __iter__
-        print(" •", section.title)
+    print("---- r1 == r1 uses __eq__ ----")
+    print(r1 == r1)
 
-    print("\n--- 'Results' in r1 ---")
-    print("Results" in r1)               # __contains__
-
-    print("\n--- combine r1 + r2 ---")
-    combined = r1 + r2                   # __add__
-    print(combined)                      # __str__
-
-    # ---- Step E: apply formatting decorators dynamically --------------
-    print("\n--- decorated summary() [bordered + logged] ---")
-    print(r1.summary())
-
-    print("\n--- title_line() [bold] ---")
-    print(r1.title_line())
-
-    print("\n--- report as callable, formatted UPPERCASE on the fly ---")
-    print(r1(formatter=str.upper))       # __call__ + dynamic formatter
-
-    print("\n--- report as callable, default (no formatter) ---")
-    print(r2())
+    print("---- summary() with @bold and @add_border decorators ----")
+    print(r1.summary()) #[span_0](start_span)[span_0](end_span)
